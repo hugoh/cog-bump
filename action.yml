@@ -1,8 +1,7 @@
 name: cog-bump
 description: >-
-  Bump the version with cocogitto (canonical fleet cog.toml) and, by default,
-  push the new tag. Outputs the tag, or empty when there was nothing to
-  release. Expects the repo already checked out with full history.
+  Bump the version with cocogitto (canonical fleet cog.toml), push the tag, and
+  output it (empty if nothing to release).
 branding:
   icon: tag
   color: blue

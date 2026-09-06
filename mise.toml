@@ -10,4 +10,10 @@ typos = "1.50.1"
 rumdl = "0.2.65"
 biome = "2.5.10"
 tombi = "1.5.1"
+ruff = "0.16.6"
+ty = "0.0.78"
 "github:owenlamont/ryl" = "0.21.0"
+
+[tasks.test]
+description = "Run the test suite"
+run = "uv run pytest"

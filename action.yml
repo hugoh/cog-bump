@@ -1,7 +1,7 @@
 name: cog-bump
 description: >-
-  Bump the version with cocogitto (canonical fleet cog.toml), push the tag, and
-  output it (empty if nothing to release).
+  Bump the version with cocogitto (bundled fleet cog.toml or a repo-supplied one),
+  push the tag(s), and output them (empty if nothing to release).
 branding:
   icon: tag
   color: blue
@@ -10,8 +10,14 @@ inputs:
     description: "auto | patch | minor | major"
     required: false
     default: auto
+  config:
+    description: >-
+      Path to a cog.toml to use instead of the bundled fleet config. Set this for
+      monorepos that need a [packages] table.
+    required: false
+    default: ""
   push:
-    description: "Push the created tag to origin (needs contents: write)"
+    description: "Push the created tag(s) to origin (needs contents: write)"
     required: false
     default: "true"
   token:
@@ -20,8 +26,11 @@ inputs:
     default: ${{ github.token }}
 outputs:
   tag:
-    description: The tag cocogitto created, or empty when nothing was releasable
+    description: First tag cocogitto created, or empty when nothing was releasable
     value: ${{ steps.bump.outputs.tag }}
+  tags:
+    description: All tags cocogitto created (newline-separated), empty when none
+    value: ${{ steps.bump.outputs.tags }}
 runs:
   using: composite
   steps:
@@ -33,23 +42,6 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
         BUMP: ${{ inputs.bump }}
+        CONFIG: ${{ inputs.config }}
         PUSH: ${{ inputs.push }}
-      run: |
-        set -euo pipefail
-        arg="--auto"
-        [ "$BUMP" != "auto" ] && arg="--$BUMP"
-
-        cog --config "$GITHUB_ACTION_PATH/cog.toml" bump "$arg" || true
-
-        TAG="$(git tag --points-at HEAD | grep -E '^v[0-9]' | head -1 || true)"
-        if [ -z "$TAG" ]; then
-          echo "cog-bump: nothing to release"
-          exit 0
-        fi
-        echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-
-        if [ "$PUSH" = "true" ]; then
-          git remote set-url origin \
-            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}"
-          git push origin "refs/tags/${TAG}"
-        fi
+      run: python3 "$GITHUB_ACTION_PATH/cog_bump.py"

@@ -1,10 +1,10 @@
 # cog-bump
 
 Bumps a repo's version with [cocogitto](https://github.com/cocogitto/cocogitto)
-using the canonical fleet `cog.toml` (`tag_prefix = "v"`, `disable_changelog`,
+using the bundled fleet `cog.toml` (`tag_prefix = "v"`, `disable_changelog`,
 `disable_bump_commit` → tag-only: no commit, no `CHANGELOG.md`), then pushes the
-new tag by default. The `tag` output is the tag cocogitto created, or empty when
-nothing was releasable.
+new tag(s) by default. The `tag` / `tags` outputs are what cocogitto created, or
+empty when nothing was releasable.
 
 Expects the repo already checked out with full history (`fetch-depth: 0`).
 
@@ -13,14 +13,16 @@ Expects the repo already checked out with full history (`fetch-depth: 0`).
 | Input | Required | Default | Purpose |
 |---|---|---|---|
 | `bump` | no | `auto` | `auto` \| `patch` \| `minor` \| `major` |
-| `push` | no | `true` | Push the created tag to `origin` (needs `contents: write`) |
+| `config` | no | *(bundled)* | Path to a repo `cog.toml` to use instead of the bundled fleet config — set this for a monorepo with a `[packages]` table |
+| `push` | no | `true` | Push the created tag(s) to `origin` (needs `contents: write`) |
 | `token` | no | `${{ github.token }}` | Token used for the tag push |
 
 ## Outputs
 
 | Output | Value |
 |---|---|
-| `tag` | The tag cocogitto created, or empty when nothing was releasable |
+| `tag` | First tag cocogitto created, or empty when nothing was releasable |
+| `tags` | All tags cocogitto created (newline-separated) — a monorepo `cog bump --auto` can create several at once |
 
 ## Usage
 
@@ -39,6 +41,27 @@ jobs:
         uses: hugoh/cog-bump@<pinned-sha>
       - if: steps.bump.outputs.tag != ''
         run: echo "released ${{ steps.bump.outputs.tag }}"
+```
+
+## Monorepo
+
+Pass `config:` pointing at a repo `cog.toml` with a `[packages]` table (cocogitto
+6.5.0 schema — what `cocogitto-action@v4.1.0` installs; cocogitto 7 renamed it to
+`[monorepo.packages]`). `cog bump --auto` then tags every package whose files
+changed since its last tag, and `tags` carries them all. Keep `disable_bump_commit`
+so the release stays tag-only, and use `monorepo_version_separator = "-v"` (**not**
+`tag_prefix`, which would stack into `pkg-vv1.2.3`) for `pkg-v1.2.3` tags.
+
+```yaml
+      - id: bump
+        uses: hugoh/cog-bump@<pinned-sha>
+        with:
+          config: cog.toml
+      - if: steps.bump.outputs.tags != ''
+        run: |
+          while IFS= read -r t; do
+            [ -n "$t" ] && echo "released $t"
+          done <<< '${{ steps.bump.outputs.tags }}'
 ```
 
 Used by the reusable

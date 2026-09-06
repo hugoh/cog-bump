@@ -1,0 +1,15 @@
+[project]
+name = "cog-bump"
+version = "0.1.0"
+description = "Composite action helper: cocogitto tag-only bump with multi-tag output"
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.uv]
+package = false

@@ -39,9 +39,13 @@ def bare_remote(tmp_path: Path, repo: Path) -> Path:
 
 @pytest.fixture
 def fake_cog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A `cog` stub. Creates the tags in ``COG_FAKE_TAGS`` (comma-separated) and
-    records its argv to ``COG_FAKE_ARGV``; exits non-zero when it made no tag,
-    like cocogitto does when there is nothing to release."""
+    """A `cog` stub covering both `cog check` and `cog bump`.
+
+    `check` exits ``COG_FAKE_CHECK_EXIT`` (default 0) and records its argv to
+    ``COG_FAKE_CHECK_ARGV``. `bump` creates the tags in ``COG_FAKE_TAGS``
+    (comma-separated), records its argv to ``COG_FAKE_ARGV``, and exits
+    non-zero when it made no tag, like cocogitto does when there is nothing
+    to release."""
     bindir = tmp_path / "bin"
     bindir.mkdir()
     cog = bindir / "cog"
@@ -49,6 +53,16 @@ def fake_cog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         textwrap.dedent("""\
         #!/usr/bin/env bash
         set -e
+        subcmd=""
+        for arg in "$@"; do
+          case "$arg" in
+            check|bump) subcmd="$arg" ;;
+          esac
+        done
+        if [ "$subcmd" = check ]; then
+          [ -n "${COG_FAKE_CHECK_ARGV:-}" ] && printf '%s ' "$@" > "$COG_FAKE_CHECK_ARGV"
+          exit "${COG_FAKE_CHECK_EXIT:-0}"
+        fi
         [ -n "${COG_FAKE_ARGV:-}" ] && printf '%s ' "$@" > "$COG_FAKE_ARGV"
         made=0
         IFS=',' read -ra tags <<< "${COG_FAKE_TAGS:-}"

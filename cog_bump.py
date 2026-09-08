@@ -13,6 +13,12 @@ cocogitto is run with ``--config`` so a monorepo repo can supply its own
 ``[packages]`` table; ``cog bump --auto`` then tags every package whose files
 changed. Any tags that appear are reported (``tag`` = first, ``tags`` = all,
 newline-separated) via ``$GITHUB_OUTPUT`` and pushed.
+
+Before bumping, ``cog check --from-latest-tag`` validates every commit since
+the latest tag against Conventional Commits. A commit that doesn't parse
+would otherwise just be silently skipped by ``cog bump`` (dropped from the
+version calculation without an error), which can under-bump a release, so
+this fails loudly instead: exit 1, no tags, nothing pushed.
 """
 
 from __future__ import annotations
@@ -40,8 +46,21 @@ def bundled_config() -> str:
     return str(Path(__file__).with_name("cog.toml"))
 
 
+def run_check(config: str) -> bool:
+    cmd = ["cog", "--config", config or bundled_config(), "check", "--from-latest-tag"]
+    print(f"cog-bump: checking commit messages since latest tag: {' '.join(cmd)}")
+    ok = subprocess.run(cmd, check=False).returncode == 0
+    print(
+        "cog-bump: commit messages OK"
+        if ok
+        else "cog-bump: invalid commit message(s) found (see above)"
+    )
+    return ok
+
+
 def run_cog(config: str, arg: str) -> None:
     cmd = ["cog", "--config", config or bundled_config(), "bump", arg]
+    print(f"cog-bump: running: {' '.join(cmd)}")
     # cocogitto exits non-zero when there is nothing to release; the tag diff,
     # not the exit code, tells us what actually happened.
     subprocess.run(cmd, check=False)
@@ -77,6 +96,14 @@ def main() -> int:
     config = os.environ.get("CONFIG", "")
     push = os.environ.get("PUSH", "true") == "true"
     token = os.environ.get("GH_TOKEN", "")
+
+    if not run_check(config):
+        print(
+            "cog-bump: fix the commit message(s) above with a correctly-formatted "
+            "follow-up commit and push again; nothing was released",
+            file=sys.stderr,
+        )
+        return 1
 
     before = git_tags()
     run_cog(config, bump_arg(bump))

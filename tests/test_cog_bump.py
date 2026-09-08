@@ -138,6 +138,42 @@ def test_no_config_uses_bundled(
     ]
 
 
+def test_check_failure_blocks_release(
+    repo: Path, fake_cog: Path, github_output: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PUSH", "false")
+    monkeypatch.setenv("COG_FAKE_CHECK_EXIT", "1")
+    monkeypatch.setenv("COG_FAKE_TAGS", "v1.0.0")
+
+    assert cog_bump.main() == 1
+
+    assert cog_bump.git_tags() == set()
+    assert github_output.read_text() == ""
+
+
+def test_check_passes_config_through(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    check_argv = tmp_path / "check_argv"
+    monkeypatch.setenv("COG_FAKE_CHECK_ARGV", str(check_argv))
+    monkeypatch.setenv("COG_FAKE_TAGS", "v1.0.0")
+    monkeypatch.setenv("PUSH", "false")
+    monkeypatch.setenv("CONFIG", "sub/cog.toml")
+
+    assert cog_bump.main() == 0
+
+    assert check_argv.read_text().split() == [
+        "--config",
+        "sub/cog.toml",
+        "check",
+        "--from-latest-tag",
+    ]
+
+
 def test_bundled_config_points_at_repo_cog_toml() -> None:
     assert cog_bump.bundled_config().endswith("/cog.toml")
     assert Path(cog_bump.bundled_config()).is_file()

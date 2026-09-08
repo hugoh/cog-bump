@@ -7,7 +7,7 @@ branding:
   color: blue
 inputs:
   bump:
-    description: "auto | patch | minor | major"
+    description: "one of: auto, patch, minor, major"
     required: false
     default: auto
   config:
@@ -29,7 +29,9 @@ outputs:
     description: First tag cocogitto created, or empty when nothing was releasable
     value: ${{ steps.bump.outputs.tag }}
   tags:
-    description: All tags cocogitto created (newline-separated), empty when none
+    description: >-
+      All tags cocogitto created (newline-separated), empty when none. A monorepo
+      `cog bump --auto` can create several at once.
     value: ${{ steps.bump.outputs.tags }}
 runs:
   using: composite

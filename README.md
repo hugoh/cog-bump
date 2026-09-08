@@ -21,19 +21,27 @@ bypassing this action.
 
 ## Inputs
 
-| Input | Required | Default | Purpose |
-|---|---|---|---|
-| `bump` | no | `auto` | `auto` \| `patch` \| `minor` \| `major` |
-| `config` | no | *(bundled)* | Path to a repo `cog.toml` to use instead of the bundled fleet config — set this for a monorepo with a `[packages]` table |
-| `push` | no | `true` | Push the created tag(s) to `origin` (needs `contents: write`) |
-| `token` | no | `${{ github.token }}` | Token used for the tag push |
+<!-- AUTO-DOC-INPUT:START - Do not remove or modify this section -->
+
+| INPUT  | REQUIRED |         DEFAULT         |                                                     DESCRIPTION                                                     |
+|--------|----------|-------------------------|---------------------------------------------------------------------------------------------------------------------|
+|  bump  |  false   |        `"auto"`         |                                          one of: auto, patch, minor, major                                          |
+| config |  false   |                         | Path to a cog.toml to use instead of the bundled fleet config. Set this for monorepos that need a [packages] table. |
+|  push  |  false   |        `"true"`         |                              Push the created tag(s) to origin (needs contents: write)                              |
+| token  |  false   | `"${{ github.token }}"` |                                             Token used for the tag push                                             |
+
+<!-- AUTO-DOC-INPUT:END -->
 
 ## Outputs
 
-| Output | Value |
-|---|---|
-| `tag` | First tag cocogitto created, or empty when nothing was releasable |
-| `tags` | All tags cocogitto created (newline-separated) — a monorepo `cog bump --auto` can create several at once |
+<!-- AUTO-DOC-OUTPUT:START - Do not remove or modify this section -->
+
+| OUTPUT |                                                        DESCRIPTION                                                        |
+|--------|---------------------------------------------------------------------------------------------------------------------------|
+|  tag   |                             First tag cocogitto created, or empty when nothing was releasable                             |
+|  tags  | All tags cocogitto created (newline-separated), empty when none. A monorepo `cog bump --auto` can create several at once. |
+
+<!-- AUTO-DOC-OUTPUT:END -->
 
 ## Usage
 

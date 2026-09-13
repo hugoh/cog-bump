@@ -56,7 +56,7 @@ def test_nothing_to_release(
     assert cog_bump.main() == 0
 
     outputs = read_outputs(github_output)
-    assert outputs == {"tag": "", "tags": ""}
+    assert outputs == {"tag": "", "tags": "", "notes": ""}
 
 
 def test_single_tag(
@@ -64,12 +64,38 @@ def test_single_tag(
 ) -> None:
     monkeypatch.setenv("PUSH", "false")
     monkeypatch.setenv("COG_FAKE_TAGS", "v1.3.0")
+    monkeypatch.setenv("COG_FAKE_CHANGELOG", "## v1.3.0\n- feat: thing\n")
 
     assert cog_bump.main() == 0
 
     outputs = read_outputs(github_output)
     assert outputs["tag"] == "v1.3.0"
     assert outputs["tags"] == "v1.3.0"
+    assert outputs["notes"] == "## v1.3.0\n- feat: thing\n"
+
+
+def test_changelog_uses_first_tag_and_config(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    argv = tmp_path / "changelog_argv"
+    monkeypatch.setenv("COG_FAKE_CHANGELOG_ARGV", str(argv))
+    monkeypatch.setenv("COG_FAKE_TAGS", "repokit-v0.3.0,asyncgh-v0.6.0")
+    monkeypatch.setenv("PUSH", "false")
+    monkeypatch.setenv("CONFIG", "sub/cog.toml")
+
+    assert cog_bump.main() == 0
+
+    assert argv.read_text().split() == [
+        "--config",
+        "sub/cog.toml",
+        "changelog",
+        "--at",
+        "asyncgh-v0.6.0",
+    ]
 
 
 def test_monorepo_multiple_tags(

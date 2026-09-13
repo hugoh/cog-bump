@@ -46,8 +46,12 @@ def bundled_config() -> str:
     return str(Path(__file__).with_name("cog.toml"))
 
 
+def resolved_config(config: str) -> str:
+    return config or bundled_config()
+
+
 def run_check(config: str) -> bool:
-    cmd = ["cog", "--config", config or bundled_config(), "check", "--from-latest-tag"]
+    cmd = ["cog", "--config", resolved_config(config), "check", "--from-latest-tag"]
     print(f"cog-bump: checking commit messages since latest tag: {' '.join(cmd)}")
     ok = subprocess.run(cmd, check=False).returncode == 0
     print(
@@ -59,11 +63,16 @@ def run_check(config: str) -> bool:
 
 
 def run_cog(config: str, arg: str) -> None:
-    cmd = ["cog", "--config", config or bundled_config(), "bump", arg]
+    cmd = ["cog", "--config", resolved_config(config), "bump", arg]
     print(f"cog-bump: running: {' '.join(cmd)}")
     # cocogitto exits non-zero when there is nothing to release; the tag diff,
     # not the exit code, tells us what actually happened.
     subprocess.run(cmd, check=False)
+
+
+def changelog(config: str, tag: str) -> str:
+    cmd = ["cog", "--config", resolved_config(config), "changelog", "--at", tag]
+    return subprocess.run(cmd, check=True, text=True, capture_output=True).stdout
 
 
 def write_output(name: str, value: str) -> None:
@@ -113,11 +122,13 @@ def main() -> int:
         print("cog-bump: nothing to release")
         write_output("tag", "")
         write_output("tags", "")
+        write_output("notes", "")
         return 0
 
     print(f"cog-bump: created {', '.join(new_tags)}")
     write_output("tag", new_tags[0])
     write_output("tags", "\n".join(new_tags))
+    write_output("notes", changelog(config, new_tags[0]))
 
     if push:
         push_tags(new_tags, token)

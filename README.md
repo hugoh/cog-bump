@@ -36,10 +36,11 @@ bypassing this action.
 
 <!-- AUTO-DOC-OUTPUT:START - Do not remove or modify this section -->
 
-| OUTPUT |                                                        DESCRIPTION                                                        |
-|--------|---------------------------------------------------------------------------------------------------------------------------|
-|  tag   |                             First tag cocogitto created, or empty when nothing was releasable                             |
-|  tags  | All tags cocogitto created (newline-separated), empty when none. A monorepo `cog bump --auto` can create several at once. |
+| OUTPUT |                                                             DESCRIPTION                                                              |
+|--------|--------------------------------------------------------------------------------------------------------------------------------------|
+| notes  | `cog changelog --at <tag>` output for the first created tag, grouped by conventional commit type. Empty when nothing was releasable. |
+|  tag   |                                  First tag cocogitto created, or empty when nothing was releasable                                   |
+|  tags  |      All tags cocogitto created (newline-separated), empty when none. A monorepo `cog bump --auto` can create several at once.       |
 
 <!-- AUTO-DOC-OUTPUT:END -->
 

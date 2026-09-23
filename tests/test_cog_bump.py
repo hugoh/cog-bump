@@ -130,6 +130,7 @@ def test_config_is_passed_through(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    git("tag", "v0.9.0", cwd=repo)
     argv = tmp_path / "argv"
     monkeypatch.setenv("COG_FAKE_ARGV", str(argv))
     monkeypatch.setenv("COG_FAKE_TAGS", "v1.0.0")
@@ -148,6 +149,7 @@ def test_no_config_uses_bundled(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    git("tag", "v0.9.0", cwd=repo)
     argv = tmp_path / "argv"
     monkeypatch.setenv("COG_FAKE_ARGV", str(argv))
     monkeypatch.setenv("COG_FAKE_TAGS", "v1.0.0")
@@ -184,6 +186,7 @@ def test_check_passes_config_through(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    git("tag", "v0.9.0", cwd=repo)
     check_argv = tmp_path / "check_argv"
     monkeypatch.setenv("COG_FAKE_CHECK_ARGV", str(check_argv))
     monkeypatch.setenv("COG_FAKE_TAGS", "v1.0.0")
@@ -198,6 +201,87 @@ def test_check_passes_config_through(
         "check",
         "--from-latest-tag",
     ]
+
+
+def test_check_covers_full_history_when_untagged(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `cog check --from-latest-tag` fails with "unable to get any tag" in a repo
+    # with no tags, which would block a new repo's first release.
+    check_argv = tmp_path / "check_argv"
+    monkeypatch.setenv("COG_FAKE_CHECK_ARGV", str(check_argv))
+    monkeypatch.setenv("COG_FAKE_TAGS", "v0.1.0")
+    monkeypatch.setenv("PUSH", "false")
+
+    assert cog_bump.main() == 0
+
+    assert check_argv.read_text().split() == [
+        "--config",
+        cog_bump.bundled_config(),
+        "check",
+    ]
+    assert read_outputs(github_output)["tag"] == "v0.1.0"
+
+
+def _bump_argv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    argv = tmp_path / "argv"
+    monkeypatch.setenv("COG_FAKE_ARGV", str(argv))
+    monkeypatch.setenv("COG_FAKE_TAGS", "v0.1.0")
+    monkeypatch.setenv("PUSH", "false")
+    return argv
+
+
+def test_first_release_is_forced_to_0_1_0(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # From 0.0.0, --auto would give 0.0.1 for fix-only history and nothing at
+    # all for chore-only history; a first release is always 0.1.0 instead.
+    argv = _bump_argv(tmp_path, monkeypatch)
+
+    assert cog_bump.main() == 0
+
+    assert argv.read_text().split()[-2:] == ["bump", "--minor"]
+
+
+def test_explicit_bump_is_kept_on_first_release(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    argv = _bump_argv(tmp_path, monkeypatch)
+    monkeypatch.setenv("BUMP", "major")
+
+    cog_bump.main()
+
+    assert argv.read_text().split()[-2:] == ["bump", "--major"]
+
+
+def test_monorepo_first_release_stays_auto(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A [packages] config tags each package on its own; --auto decides which.
+    config = tmp_path / "cog.toml"
+    config.write_text('[packages]\nasyncgh = { path = "asyncgh" }\n')
+    argv = _bump_argv(tmp_path, monkeypatch)
+    monkeypatch.setenv("CONFIG", str(config))
+
+    cog_bump.main()
+
+    assert argv.read_text().split()[-2:] == ["bump", "--auto"]
 
 
 def test_bundled_config_points_at_repo_cog_toml() -> None:

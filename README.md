@@ -12,12 +12,19 @@ Before bumping, `cog check --from-latest-tag` validates every commit since the
 latest tag against Conventional Commits. `cog bump` otherwise just silently
 drops a commit it can't parse from the version calculation — which can
 under-bump a release (e.g. a mistyped `BREAKING CHANGE:` footer shipping as a
-patch) — so an invalid commit message fails the action instead: no tag, no
-push. Recover by pushing a correctly-formatted follow-up commit (an empty
+patch) — so an invalid commit message fails the action instead: no tag, no push.
+Recover by pushing a correctly-formatted follow-up commit (an empty
 `fix!:`/`feat:` commit works, since `disable_changelog` means there's no
-changelog entry to look at), or by computing/pushing the tag yourself and
-having the calling workflow create the release from that tag directly,
-bypassing this action.
+changelog entry to look at), or by computing/pushing the tag yourself and having
+the calling workflow create the release from that tag directly, bypassing this
+action. In a repo with no tag yet, `cog check` validates the whole history
+instead, so a new repo can cut its first release.
+
+A repo's first release (no tags yet) is always `v0.1.0` with `bump: auto`,
+whatever the commit types: from 0.0.0, cocogitto would otherwise release
+`fix:`-only history as 0.0.1 and `chore:`-only history not at all. An explicit
+`bump` still wins (`major` gives 1.0.0), and a monorepo `config:` keeps
+`--auto`, since it tags each package on its own.
 
 ## Inputs
 

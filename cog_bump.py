@@ -15,7 +15,11 @@ changed. Any tags that appear are reported (``tag`` = first, ``tags`` = all,
 newline-separated) via ``$GITHUB_OUTPUT`` and pushed.
 
 Before bumping, ``cog check --from-latest-tag`` validates every commit since
-the latest tag against Conventional Commits. A commit that doesn't parse
+the latest tag against Conventional Commits (the whole history when the repo
+has no tag yet).
+
+A repo's first release (no tags yet) is always 0.1.0 with ``BUMP=auto``,
+except for a monorepo config, which keeps ``--auto`` per package. A commit that doesn't parse
 would otherwise just be silently skipped by ``cog bump`` (dropped from the
 version calculation without an error), which can under-bump a release, so
 this fails loudly instead: exit 1, no tags, nothing pushed.
@@ -26,6 +30,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 _OUTPUT_DELIMITER = "COG_BUMP_EOF"
@@ -42,6 +47,23 @@ def bump_arg(bump: str) -> str:
     return "--auto" if bump == "auto" else f"--{bump}"
 
 
+def is_monorepo(config: str) -> bool:
+    try:
+        with Path(resolved_config(config)).open("rb") as fh:
+            return "packages" in tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return False
+
+
+def effective_bump_arg(bump: str, config: str, first_release: bool) -> str:
+    # From 0.0.0, --auto gives 0.0.1 for fix-only history and no release at
+    # all for chore-only history, so a repo's first release is pinned to 0.1.0.
+    # A monorepo keeps --auto: it tags each package on its own.
+    if bump == "auto" and first_release and not is_monorepo(config):
+        return "--minor"
+    return bump_arg(bump)
+
+
 def bundled_config() -> str:
     return str(Path(__file__).with_name("cog.toml"))
 
@@ -51,8 +73,15 @@ def resolved_config(config: str) -> str:
 
 
 def run_check(config: str) -> bool:
-    cmd = ["cog", "--config", resolved_config(config), "check", "--from-latest-tag"]
-    print(f"cog-bump: checking commit messages since latest tag: {' '.join(cmd)}")
+    cmd = ["cog", "--config", resolved_config(config), "check"]
+    # `--from-latest-tag` errors out when there is no tag yet, so a repo's first
+    # release checks its whole history instead.
+    if git_tags():
+        cmd.append("--from-latest-tag")
+        scope = "since latest tag"
+    else:
+        scope = "in full history (no tags yet)"
+    print(f"cog-bump: checking commit messages {scope}: {' '.join(cmd)}")
     ok = subprocess.run(cmd, check=False).returncode == 0
     print(
         "cog-bump: commit messages OK"
@@ -115,7 +144,7 @@ def main() -> int:
         return 1
 
     before = git_tags()
-    run_cog(config, bump_arg(bump))
+    run_cog(config, effective_bump_arg(bump, config, first_release=not before))
     new_tags = sorted(git_tags() - before)
 
     if not new_tags:

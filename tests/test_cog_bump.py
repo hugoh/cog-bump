@@ -98,33 +98,27 @@ def test_changelog_uses_first_tag_and_config(
     ]
 
 
-def test_monorepo_changelog_uses_package_template(
+def test_monorepo_skips_changelog(
     repo: Path,
     fake_cog: Path,
     github_output: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # cocogitto's default monorepo template fails to render with `--at`
-    # ("Variable `packages` not found"), which would crash after tagging.
+    # cocogitto's monorepo changelog isn't filtered by package: every template
+    # lists all commits in the range, so a monorepo builds its own notes.
     config = tmp_path / "cog.toml"
     config.write_text('[monorepo.packages]\nrepokit = { path = "repokit" }\n')
     argv = tmp_path / "changelog_argv"
     monkeypatch.setenv("COG_FAKE_CHANGELOG_ARGV", str(argv))
-    monkeypatch.setenv("COG_FAKE_CHANGELOG", "#### Bug Fixes")
     monkeypatch.setenv("COG_FAKE_TAGS", "repokit-v0.3.1")
     monkeypatch.setenv("PUSH", "false")
     monkeypatch.setenv("CONFIG", str(config))
 
     assert cog_bump.main() == 0
 
-    assert argv.read_text().split()[-4:] == [
-        "--at",
-        "repokit-v0.3.1",
-        "-t",
-        "package_default",
-    ]
-    assert read_outputs(github_output)["notes"] == "#### Bug Fixes"
+    assert not argv.exists()
+    assert read_outputs(github_output)["notes"] == ""
 
 
 def test_monorepo_multiple_tags(

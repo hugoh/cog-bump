@@ -13,7 +13,7 @@ inputs:
   config:
     description: >-
       Path to a cog.toml to use instead of the bundled fleet config. Set this for
-      monorepos that need a [packages] table.
+      monorepos that need a [monorepo.packages] table.
     required: false
     default: ""
   push:
@@ -36,7 +36,8 @@ outputs:
   notes:
     description: >-
       `cog changelog --at <tag>` output for the first created tag, grouped by
-      conventional commit type. Empty when nothing was releasable.
+      conventional commit type (`-t package_default` for a monorepo config).
+      Empty when nothing was releasable.
     value: ${{ steps.bump.outputs.notes }}
 runs:
   using: composite

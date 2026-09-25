@@ -10,11 +10,11 @@ without argument plumbing:
     GH_TOKEN    token for the tag push               (default: unset)
 
 cocogitto is run with ``--config`` so a monorepo repo can supply its own
-``[packages]`` table; ``cog bump --auto`` then tags every package whose files
+``[monorepo.packages]`` table (``[packages]`` before cocogitto 7); ``cog bump --auto`` then tags every package whose files
 changed. Any tags that appear are reported (``tag`` = first, ``tags`` = all,
 newline-separated) via ``$GITHUB_OUTPUT`` and pushed.
 
-Before bumping, ``cog check --from-latest-tag`` validates every commit since
+Before bumping, ``cog check <latest-tag>..HEAD`` validates every commit since
 the latest tag against Conventional Commits (the whole history when the repo
 has no tag yet).
 
@@ -43,6 +43,15 @@ def git_tags() -> set[str]:
     return {line for line in out.splitlines() if line}
 
 
+def latest_tag() -> str:
+    return subprocess.run(
+        ["git", "describe", "--tags", "--abbrev=0"],
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+
+
 def bump_arg(bump: str) -> str:
     return "--auto" if bump == "auto" else f"--{bump}"
 
@@ -50,9 +59,10 @@ def bump_arg(bump: str) -> str:
 def is_monorepo(config: str) -> bool:
     try:
         with Path(resolved_config(config)).open("rb") as fh:
-            return "packages" in tomllib.load(fh)
+            data = tomllib.load(fh)
     except (OSError, tomllib.TOMLDecodeError):
         return False
+    return "packages" in data or "packages" in data.get("monorepo", {})
 
 
 def effective_bump_arg(bump: str, config: str, first_release: bool) -> str:
@@ -74,10 +84,11 @@ def resolved_config(config: str) -> str:
 
 def run_check(config: str) -> bool:
     cmd = ["cog", "--config", resolved_config(config), "check"]
-    # `--from-latest-tag` errors out when there is no tag yet, so a repo's first
-    # release checks its whole history instead.
+    # An explicit range rather than `--from-latest-tag`, which ignores monorepo
+    # package tags. With no tag yet, a repo's first release checks its whole
+    # history instead.
     if git_tags():
-        cmd.append("--from-latest-tag")
+        cmd.append(f"{latest_tag()}..HEAD")
         scope = "since latest tag"
     else:
         scope = "in full history (no tags yet)"
@@ -101,6 +112,9 @@ def run_cog(config: str, arg: str) -> None:
 
 def changelog(config: str, tag: str) -> str:
     cmd = ["cog", "--config", resolved_config(config), "changelog", "--at", tag]
+    # cocogitto's default monorepo template can't render a single `--at` tag.
+    if is_monorepo(config):
+        cmd += ["-t", "package_default"]
     return subprocess.run(cmd, check=True, text=True, capture_output=True).stdout
 
 

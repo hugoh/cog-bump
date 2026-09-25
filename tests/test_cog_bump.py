@@ -98,6 +98,35 @@ def test_changelog_uses_first_tag_and_config(
     ]
 
 
+def test_monorepo_changelog_uses_package_template(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # cocogitto's default monorepo template fails to render with `--at`
+    # ("Variable `packages` not found"), which would crash after tagging.
+    config = tmp_path / "cog.toml"
+    config.write_text('[monorepo.packages]\nrepokit = { path = "repokit" }\n')
+    argv = tmp_path / "changelog_argv"
+    monkeypatch.setenv("COG_FAKE_CHANGELOG_ARGV", str(argv))
+    monkeypatch.setenv("COG_FAKE_CHANGELOG", "#### Bug Fixes")
+    monkeypatch.setenv("COG_FAKE_TAGS", "repokit-v0.3.1")
+    monkeypatch.setenv("PUSH", "false")
+    monkeypatch.setenv("CONFIG", str(config))
+
+    assert cog_bump.main() == 0
+
+    assert argv.read_text().split()[-4:] == [
+        "--at",
+        "repokit-v0.3.1",
+        "-t",
+        "package_default",
+    ]
+    assert read_outputs(github_output)["notes"] == "#### Bug Fixes"
+
+
 def test_monorepo_multiple_tags(
     repo: Path, fake_cog: Path, github_output: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -199,8 +228,27 @@ def test_check_passes_config_through(
         "--config",
         "sub/cog.toml",
         "check",
-        "--from-latest-tag",
+        "v0.9.0..HEAD",
     ]
+
+
+def test_check_range_starts_at_package_tag(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A monorepo has only `<package>-v<version>` tags, which `cog check
+    # --from-latest-tag` doesn't count: it fails with "unable to get any tag".
+    git("tag", "asyncgh-v0.5.0", cwd=repo)
+    check_argv = tmp_path / "check_argv"
+    monkeypatch.setenv("COG_FAKE_CHECK_ARGV", str(check_argv))
+    monkeypatch.setenv("PUSH", "false")
+
+    assert cog_bump.main() == 0
+
+    assert check_argv.read_text().split()[-1] == "asyncgh-v0.5.0..HEAD"
 
 
 def test_check_covers_full_history_when_untagged(
@@ -266,16 +314,19 @@ def test_explicit_bump_is_kept_on_first_release(
     assert argv.read_text().split()[-2:] == ["bump", "--major"]
 
 
+@pytest.mark.parametrize("table", ["packages", "monorepo.packages"])
 def test_monorepo_first_release_stays_auto(
+    table: str,
     repo: Path,
     fake_cog: Path,
     github_output: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # A [packages] config tags each package on its own; --auto decides which.
+    # A monorepo config ([packages] before cocogitto 7, [monorepo.packages]
+    # since) tags each package on its own; --auto decides which.
     config = tmp_path / "cog.toml"
-    config.write_text('[packages]\nasyncgh = { path = "asyncgh" }\n')
+    config.write_text(f'[{table}]\nasyncgh = {{ path = "asyncgh" }}\n')
     argv = _bump_argv(tmp_path, monkeypatch)
     monkeypatch.setenv("CONFIG", str(config))
 

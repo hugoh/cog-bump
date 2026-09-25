@@ -36,8 +36,9 @@ outputs:
   notes:
     description: >-
       `cog changelog --at <tag>` output for the first created tag, grouped by
-      conventional commit type (`-t package_default` for a monorepo config).
-      Empty when nothing was releasable.
+      conventional commit type. Empty when nothing was releasable, and always
+      empty for a monorepo config: cocogitto's changelog isn't filtered by
+      package.
     value: ${{ steps.bump.outputs.notes }}
 runs:
   using: composite

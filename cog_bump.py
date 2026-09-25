@@ -112,9 +112,6 @@ def run_cog(config: str, arg: str) -> None:
 
 def changelog(config: str, tag: str) -> str:
     cmd = ["cog", "--config", resolved_config(config), "changelog", "--at", tag]
-    # cocogitto's default monorepo template can't render a single `--at` tag.
-    if is_monorepo(config):
-        cmd += ["-t", "package_default"]
     return subprocess.run(cmd, check=True, text=True, capture_output=True).stdout
 
 
@@ -171,7 +168,10 @@ def main() -> int:
     print(f"cog-bump: created {', '.join(new_tags)}")
     write_output("tag", new_tags[0])
     write_output("tags", "\n".join(new_tags))
-    write_output("notes", changelog(config, new_tags[0]))
+    # cocogitto's monorepo changelog isn't filtered by package, so a monorepo
+    # builds its own notes (e.g. git-cliff --include-path).
+    notes = "" if is_monorepo(config) else changelog(config, new_tags[0])
+    write_output("notes", notes)
 
     if push:
         push_tags(new_tags, token)

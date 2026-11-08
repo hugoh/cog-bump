@@ -11,7 +11,7 @@ biome = "2.6.4"
 tombi = "1.9.8"
 ruff = "0.17.3"
 ty = "0.0.95"
-"github:owenlamont/ryl" = "0.27.0"
+"github:owenlamont/ryl" = "0.28.0"
 "github:tj-actions/auto-doc" = "3.6.0"
 
 [tasks.test]

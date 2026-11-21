@@ -269,6 +269,99 @@ def test_check_covers_full_history_when_untagged(
     assert read_outputs(github_output)["tag"] == "v0.1.0"
 
 
+def _commit(repo: Path, message: str) -> None:
+    git("commit", "-q", "--allow-empty", "-m", message, cwd=repo)
+
+
+def _verified(log: Path) -> list[str]:
+    return log.read_text().splitlines() if log.exists() else []
+
+
+def test_github_merge_subjects_are_not_checked(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A squash that kept GitHub's "Merge pull request" subject is not a merge
+    # commit (one parent), so cocogitto's ignore_merge_commits misses it. It
+    # must not block every later release.
+    git("tag", "v0.9.0", cwd=repo)
+    _commit(repo, "feat: first")
+    _commit(repo, "Merge pull request #2 from me/branch\n\nci: gate the release")
+    _commit(repo, "fix: second")
+    log = tmp_path / "verify_log"
+    check_argv = tmp_path / "check_argv"
+    monkeypatch.setenv("COG_FAKE_VERIFY_LOG", str(log))
+    monkeypatch.setenv("COG_FAKE_CHECK_ARGV", str(check_argv))
+    monkeypatch.setenv("COG_FAKE_TAGS", "v1.0.0")
+    monkeypatch.setenv("PUSH", "false")
+
+    assert cog_bump.main() == 0
+
+    assert _verified(log) == ["feat: first", "fix: second"]
+    assert not check_argv.exists()
+    assert read_outputs(github_output)["tag"] == "v1.0.0"
+
+
+def test_a_bad_message_still_blocks_next_to_ignored_ones(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    git("tag", "v0.9.0", cwd=repo)
+    _commit(repo, "Merge pull request #2 from me/branch")
+    _commit(repo, "bad message")
+    monkeypatch.setenv("COG_FAKE_VERIFY_LOG", str(tmp_path / "verify_log"))
+    monkeypatch.setenv("COG_FAKE_TAGS", "v1.0.0")
+    monkeypatch.setenv("PUSH", "false")
+
+    assert cog_bump.main() == 1
+
+    assert cog_bump.git_tags() == {"v0.9.0"}
+    assert github_output.read_text() == ""
+
+
+def test_untagged_history_is_filtered_the_same_way(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _commit(repo, "Merge branch 'main' into feature")
+    log = tmp_path / "verify_log"
+    monkeypatch.setenv("COG_FAKE_VERIFY_LOG", str(log))
+    monkeypatch.setenv("COG_FAKE_TAGS", "v0.1.0")
+    monkeypatch.setenv("PUSH", "false")
+
+    assert cog_bump.main() == 0
+
+    assert _verified(log) == ["init"]
+
+
+def test_without_such_commits_the_range_is_checked_in_one_call(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    git("tag", "v0.9.0", cwd=repo)
+    _commit(repo, "feat: only")
+    log = tmp_path / "verify_log"
+    monkeypatch.setenv("COG_FAKE_VERIFY_LOG", str(log))
+    monkeypatch.setenv("COG_FAKE_TAGS", "v1.0.0")
+    monkeypatch.setenv("PUSH", "false")
+
+    assert cog_bump.main() == 0
+
+    assert _verified(log) == []
+
+
 def _bump_argv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     argv = tmp_path / "argv"
     monkeypatch.setenv("COG_FAKE_ARGV", str(argv))

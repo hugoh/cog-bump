@@ -16,7 +16,8 @@ newline-separated) via ``$GITHUB_OUTPUT`` and pushed.
 
 Before bumping, ``cog check <latest-tag>..HEAD`` validates every commit since
 the latest tag against Conventional Commits (the whole history when the repo
-has no tag yet).
+has no tag yet). Commits whose subject is one of GitHub's own "Merge pull
+request ..." or "Merge branch ..." subjects are skipped.
 
 A repo's first release (no tags yet) is always 0.1.0 with ``BUMP=auto``,
 except for a monorepo config, which keeps ``--auto`` per package. A commit that doesn't parse
@@ -28,6 +29,7 @@ this fails loudly instead: exit 1, no tags, nothing pushed.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import tomllib
@@ -82,18 +84,63 @@ def resolved_config(config: str) -> str:
     return config or bundled_config()
 
 
+# GitHub's own merge-commit subjects. A squash or rebase merge can keep one as
+# the subject of an ordinary single-parent commit, which cocogitto's
+# `ignore_merge_commits` does not recognise, and which no later commit can fix.
+_GITHUB_MERGE_SUBJECT = re.compile(
+    r"^Merge (pull request|branch|remote-tracking branch|tag) "
+)
+_RECORD = "\x1e"
+
+
+def commit_messages(revision_range: str) -> list[str]:
+    out = subprocess.run(
+        ["git", "log", "--reverse", f"--format=%B{_RECORD}", revision_range],
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout
+    return [m.strip() for m in out.split(_RECORD) if m.strip()]
+
+
+def is_github_merge(message: str) -> bool:
+    return bool(_GITHUB_MERGE_SUBJECT.match(message))
+
+
+def verify_messages(config: str, messages: list[str]) -> bool:
+    ok = True
+    for message in messages:
+        cmd = ["cog", "--config", resolved_config(config), "verify", message]
+        if subprocess.run(cmd, check=False).returncode != 0:
+            ok = False
+    return ok
+
+
 def run_check(config: str) -> bool:
     cmd = ["cog", "--config", resolved_config(config), "check"]
     # An explicit range rather than `--from-latest-tag`, which ignores monorepo
     # package tags. With no tag yet, a repo's first release checks its whole
     # history instead.
     if git_tags():
-        cmd.append(f"{latest_tag()}..HEAD")
+        revision_range = f"{latest_tag()}..HEAD"
+        cmd.append(revision_range)
         scope = "since latest tag"
     else:
+        revision_range = "HEAD"
         scope = "in full history (no tags yet)"
-    print(f"cog-bump: checking commit messages {scope}: {' '.join(cmd)}")
-    ok = subprocess.run(cmd, check=False).returncode == 0
+    messages = commit_messages(revision_range)
+    skipped = [m for m in messages if is_github_merge(m)]
+    if skipped:
+        # `cog check` takes a range, not a list, so verify the rest one by one.
+        kept = [m for m in messages if not is_github_merge(m)]
+        print(
+            f"cog-bump: checking commit messages {scope}, skipping "
+            f"{len(skipped)} GitHub merge-style subject(s)"
+        )
+        ok = verify_messages(config, kept)
+    else:
+        print(f"cog-bump: checking commit messages {scope}: {' '.join(cmd)}")
+        ok = subprocess.run(cmd, check=False).returncode == 0
     print(
         "cog-bump: commit messages OK"
         if ok

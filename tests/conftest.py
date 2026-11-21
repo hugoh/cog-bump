@@ -41,7 +41,8 @@ def bare_remote(tmp_path: Path, repo: Path) -> Path:
 def fake_cog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A `cog` stub covering `cog check`, `cog bump`, and `cog changelog`.
 
-    `check` exits ``COG_FAKE_CHECK_EXIT`` (default 0) and records its argv to
+    `verify` logs its message to ``COG_FAKE_VERIFY_LOG`` and fails when the
+    message starts with "bad". `check` exits ``COG_FAKE_CHECK_EXIT`` (default 0) and records its argv to
     ``COG_FAKE_CHECK_ARGV``. `bump` creates the tags in ``COG_FAKE_TAGS``
     (comma-separated), records its argv to ``COG_FAKE_ARGV``, and exits
     non-zero when it made no tag, like cocogitto does when there is nothing
@@ -57,12 +58,18 @@ def fake_cog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         subcmd=""
         for arg in "$@"; do
           case "$arg" in
-            check|bump|changelog) subcmd="$arg" ;;
+            check|bump|changelog|verify) subcmd="$arg" ;;
           esac
         done
         if [ "$subcmd" = check ]; then
           [ -n "${COG_FAKE_CHECK_ARGV:-}" ] && printf '%s ' "$@" > "$COG_FAKE_CHECK_ARGV"
           exit "${COG_FAKE_CHECK_EXIT:-0}"
+        fi
+        if [ "$subcmd" = verify ]; then
+          message="${@: -1}"
+          [ -n "${COG_FAKE_VERIFY_LOG:-}" ] && printf '%s\\n' "$message" >> "$COG_FAKE_VERIFY_LOG"
+          case "$message" in bad*) exit 1 ;; esac
+          exit 0
         fi
         if [ "$subcmd" = changelog ]; then
           [ -n "${COG_FAKE_CHANGELOG_ARGV:-}" ] && printf '%s ' "$@" > "$COG_FAKE_CHANGELOG_ARGV"

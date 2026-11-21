@@ -21,6 +21,13 @@ the release from that tag directly, bypassing this action. In a repo with no tag
 yet, `cog check` validates the whole history instead, so a new repo can cut its
 first release.
 
+Commits whose subject is one of GitHub's own `Merge pull request ...` or
+`Merge branch ...` subjects are skipped. A squash or rebase merge can keep such
+a subject on an ordinary single-parent commit, which cocogitto's
+`ignore_merge_commits` does not treat as a merge, and no follow-up commit can
+fix it. When one is in the range, the other commits are checked one by one with
+`cog verify` instead of one `cog check` call.
+
 A repo's first release (no tags yet) is always `v0.1.0` with `bump: auto`,
 whatever the commit types: from 0.0.0, cocogitto would otherwise release
 `fix:`-only history as 0.0.1 and `chore:`-only history not at all. An explicit

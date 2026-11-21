@@ -107,7 +107,22 @@ def is_github_merge(message: str) -> bool:
     return bool(_GITHUB_MERGE_SUBJECT.match(message))
 
 
+def ensure_git_identity() -> None:
+    """`cog verify` panics without a git user.name, which a fresh runner lacks."""
+    name = subprocess.run(
+        ["git", "config", "user.name"], check=False, text=True, capture_output=True
+    ).stdout.strip()
+    if name:
+        return
+    for key, value in (
+        ("user.name", "cog-bump"),
+        ("user.email", "cog-bump@users.noreply.github.com"),
+    ):
+        subprocess.run(["git", "config", "--local", key, value], check=True)
+
+
 def verify_messages(config: str, messages: list[str]) -> bool:
+    ensure_git_identity()
     ok = True
     for message in messages:
         cmd = ["cog", "--config", resolved_config(config), "verify", message]

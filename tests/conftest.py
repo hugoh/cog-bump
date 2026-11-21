@@ -66,6 +66,8 @@ def fake_cog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
           exit "${COG_FAKE_CHECK_EXIT:-0}"
         fi
         if [ "$subcmd" = verify ]; then
+          # The real cog panics in `verify` without a git user.name.
+          [ -n "$(git config user.name || true)" ] || exit 101
           message="${@: -1}"
           [ -n "${COG_FAKE_VERIFY_LOG:-}" ] && printf '%s\\n' "$message" >> "$COG_FAKE_VERIFY_LOG"
           case "$message" in bad*) exit 1 ;; esac

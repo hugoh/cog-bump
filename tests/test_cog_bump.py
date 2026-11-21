@@ -362,6 +362,73 @@ def test_without_such_commits_the_range_is_checked_in_one_call(
     assert _verified(log) == []
 
 
+def _without_git_identity(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(home))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.delenv("GIT_CONFIG_GLOBAL", raising=False)
+    git("config", "--unset", "user.name", cwd=repo)
+    git("config", "--unset", "user.email", cwd=repo)
+
+
+def test_verify_works_on_a_runner_with_no_git_identity(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `cog verify` panics with "config value 'user.name' was not found", which
+    # is what a fresh CI runner has.
+    git("tag", "v0.9.0", cwd=repo)
+    _without_git_identity(repo, tmp_path, monkeypatch)
+    _commit_as(repo, "Merge pull request #2 from me/branch")
+    _commit_as(repo, "feat: first")
+    monkeypatch.setenv("COG_FAKE_TAGS", "v1.0.0")
+    monkeypatch.setenv("PUSH", "false")
+
+    assert cog_bump.main() == 0
+
+
+def test_an_existing_git_identity_is_left_alone(
+    repo: Path,
+    fake_cog: Path,
+    github_output: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    git("config", "user.name", "someone", cwd=repo)
+    git("tag", "v0.9.0", cwd=repo)
+    _commit(repo, "Merge pull request #2 from me/branch")
+    monkeypatch.setenv("COG_FAKE_TAGS", "v1.0.0")
+    monkeypatch.setenv("PUSH", "false")
+
+    assert cog_bump.main() == 0
+
+    name = subprocess.run(
+        ["git", "config", "user.name"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    assert name == "someone"
+
+
+def _commit_as(repo: Path, message: str) -> None:
+    git(
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@example.com",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        message,
+        cwd=repo,
+    )
+
+
 def _bump_argv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     argv = tmp_path / "argv"
     monkeypatch.setenv("COG_FAKE_ARGV", str(argv))

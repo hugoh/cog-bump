@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   hk:
-    uses: hugoh/gh-workflows/.github/workflows/hk.yml@30ea88e8815001f26c86977d2ba60ddddebf42e0 # v1.40.23
+    uses: hugoh/gh-workflows/.github/workflows/hk.yml@0fb46042e4562ccf11f83bacc6c916d281379700 # v1.40.25
     permissions:
       contents: read
       packages: read
@@ -37,7 +37,7 @@ jobs:
   release:
     needs: ci-gate
     if: github.event_name == 'push'
-    uses: hugoh/gh-workflows/.github/workflows/release.yml@30ea88e8815001f26c86977d2ba60ddddebf42e0 # v1.40.23
+    uses: hugoh/gh-workflows/.github/workflows/release.yml@0fb46042e4562ccf11f83bacc6c916d281379700 # v1.40.25
     permissions:
       contents: write
     with:

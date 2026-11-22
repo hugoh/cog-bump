@@ -529,3 +529,26 @@ def test_push_skipped_when_disabled(
         ["git", "tag"], cwd=bare_remote, check=True, text=True, capture_output=True
     ).stdout
     assert "v9.9.9" not in pushed
+
+
+def test_notes_list_each_author_once(
+    repo: Path, fake_cog: Path, github_output: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A squash-merged PR concatenates every commit message, so the same
+    # Co-Authored-By trailer arrives once per commit.
+    monkeypatch.setenv("PUSH", "false")
+    monkeypatch.setenv("COG_FAKE_TAGS", "v0.2.0")
+    monkeypatch.setenv(
+        "COG_FAKE_CHANGELOG",
+        "## v0.2.0 - 2026-11-22\n#### Features\n"
+        "- (**http**) retry reads (#10) - (493888f) - Hugo Haas, *Claude Sonnet 5.5*,"
+        " *Claude Sonnet 5.5*, *Claude Sonnet 5.5*, *Claude*\n",
+    )
+
+    assert cog_bump.main() == 0
+
+    assert read_outputs(github_output)["notes"] == (
+        "## v0.2.0 - 2026-11-22\n#### Features\n"
+        "- (**http**) retry reads (#10) - (493888f) - Hugo Haas, *Claude Sonnet 5.5*,"
+        " *Claude*\n"
+    )

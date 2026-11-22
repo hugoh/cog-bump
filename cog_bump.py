@@ -172,9 +172,25 @@ def run_cog(config: str, arg: str) -> None:
     subprocess.run(cmd, check=False)
 
 
+_AUTHORS_SUFFIX = re.compile(r"^(?P<head>.* - \([0-9a-f]+\) - )(?P<authors>.+)$")
+
+
+def dedupe_authors(notes: str) -> str:
+    """Squash-merged commits repeat their Co-Authored-By trailers; list each author once."""
+    lines = []
+    for line in notes.split("\n"):
+        match = _AUTHORS_SUFFIX.match(line)
+        if match:
+            authors = dict.fromkeys(match["authors"].split(", "))
+            line = match["head"] + ", ".join(authors)
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def changelog(config: str, tag: str) -> str:
     cmd = ["cog", "--config", resolved_config(config), "changelog", "--at", tag]
-    return subprocess.run(cmd, check=True, text=True, capture_output=True).stdout
+    out = subprocess.run(cmd, check=True, text=True, capture_output=True).stdout
+    return dedupe_authors(out)
 
 
 def write_output(name: str, value: str) -> None:
